@@ -1,76 +1,68 @@
+const ActiveDirectory = require('activedirectory2');
 const pool = require('../config/db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
-exports.registrarUsuario = async (req, res) => {
-    const { username, password, email, rol_id } = req.body;
-
-    try {
-        const userCheck = await pool.query('SELECT * FROM seguridad.usuarios WHERE username = $1', [username]);
-        if (userCheck.rows.length > 0) {
-            return res.status(400).json({ error: 'El nombre de usuario ya está en uso' });
-        }
-
-        const salt = await bcrypt.genSalt(10);
-        const passwordHash = await bcrypt.hash(password, salt);
-
-        const query = `
-            INSERT INTO seguridad.usuarios (username, password_hash, email, origen_auth, rol_id)
-            VALUES ($1, $2, $3, 'LOCAL', $4)
-            RETURNING id, username, email, origen_auth;
-        `;
-        const values = [username, passwordHash, email, rol_id || 2];
-        const result = await pool.query(query, values);
-
-        res.status(201).json({
-            mensaje: 'Usuario creado exitosamente en local',
-            usuario: result.rows[0]
-        });
-
-    } catch (error) {
-        console.error('Error en el registro:', error);
-        res.status(500).json({ error: 'Error interno del servidor al crear usuario en local' });
-    }
+const adConfig = {
+    url: process.env.AD_URL,
+    baseDN: process.env.AD_BASE_DN,
+    username: process.env.AD_USER,
+    password: process.env.AD_PASSWORD
 };
 
-exports.loginLocal = async (req, res) => {
+const ad = new ActiveDirectory(adConfig);
+
+exports.login = async (req, res) => {
     const { username, password } = req.body;
 
     try {
-        const query = `
-            SELECT u.*, r.nombre as rol_nombre 
-            FROM seguridad.usuarios u 
-            LEFT JOIN seguridad.roles r ON u.rol_id = r.id 
-            WHERE u.username = $1 AND u.origen_auth = 'LOCAL'
-        `;
-        const result = await pool.query(query, [username]);
-        const user = result.rows[0];
+        const adUserExists = await checkAdUserExists(username);
 
-        if (!user) {
-            await registrarAuditoriaLogin(username, false, 'LOCAL', req);
-            return res.status(401).json({ error: 'Usuario no encontrado o credenciales inválidas' });
+        console.log("adUserExists", adUserExists);
+
+        if (adUserExists) {
+            // const adAuthSuccess = await authenticateWithAd(username, password);
+            const adAuthSuccess = await authenticateWithAd(adUserExists.userPrincipalName, password);
+
+            if (adAuthSuccess) {
+                await registrarAuditoriaLogin(username, true, 'AD', req);
+
+                const userDb = await syncUserFromAdToDb(username, adUserExists);
+                const token = generateToken(userDb);
+
+                return res.json({
+                    mensaje: 'Acceso CONCEDIDO via AD',
+                    token,
+                    user: { username: userDb.username, role: userDb.rol_nombre }
+                });
+            } else {
+                await registrarAuditoriaLogin(username, false, 'AD', req);
+                return res.status(401).json({ error: 'Denegar acceso: credenciales AD incorrectas' });
+            }
         }
+        else {
+            const userLocal = await getUserFromDb(username);
 
-        const passwordMatch = await bcrypt.compare(password, user.password_hash);
+            if (userLocal && userLocal.origen_auth === 'LOCAL') {
+                const passwordMatch = await bcrypt.compare(password, userLocal.password_hash);
 
-        if (!passwordMatch) {
-            await registrarAuditoriaLogin(username, false, 'LOCAL', req);
-            return res.status(401).json({ error: 'Credenciales inválidas' });
+                if (passwordMatch) {
+                    await registrarAuditoriaLogin(username, true, 'LOCAL', req);
+
+                    const token = generateToken(userLocal);
+                    return res.json({
+                        mensaje: 'Acceso CONCEDIDO via Postgres',
+                        token,
+                        user: { username: userLocal.username, role: userLocal.rol_nombre }
+                    });
+                } else {
+                    await registrarAuditoriaLogin(username, false, 'LOCAL', req);
+                    return res.status(401).json({ error: 'Credenciales locales incorrectas' });
+                }
+            } else {
+                return res.status(404).json({ error: 'Usuario no encontrado en ningún sistema' });
+            }
         }
-
-        await registrarAuditoriaLogin(username, true, 'LOCAL', req);
-
-        const token = jwt.sign(
-            { id: user.id, username: user.username, role: user.rol_nombre },
-            process.env.JWT_SECRET,
-            { expiresIn: '8h' }
-        );
-
-        res.json({
-            mensaje: 'Autenticación local exitosa',
-            token,
-            user: { username: user.username, role: user.rol_nombre }
-        });
 
     } catch (error) {
         console.error('Error en login:', error);
@@ -87,6 +79,72 @@ async function registrarAuditoriaLogin(username, exitoso, origenAuth, req) {
         `;
         await pool.query(query, [username, exitoso, origenAuth, ip]);
     } catch (error) {
-        console.error('Error guardando historial de login:', error);
+        console.error('Error al registrar auditoria:', error);
     }
+}
+
+function checkAdUserExists(username) {
+    return new Promise((resolve) => {
+        ad.findUser(username, (err, user) => {
+            if (err) {
+                console.log(`Busqueda en AD fallo o no se encontro a ${username}.`);
+                return resolve(false);
+            }
+            if (!user) return resolve(false);
+            return resolve(user);
+        });
+    });
+}
+
+function authenticateWithAd(username, password) {
+    return new Promise((resolve) => {
+        ad.authenticate(username, password, (err, auth) => {
+            if (err) {
+                console.error(`Error de autenticacion AD para ${username}:`, JSON.stringify(err));
+                return resolve(false);
+            }
+            return resolve(auth);
+        });
+    });
+}
+
+async function getUserFromDb(username) {
+    const query = `
+        SELECT u.*, r.nombre as rol_nombre 
+        FROM seguridad.usuarios u 
+        LEFT JOIN seguridad.roles r ON u.rol_id = r.id 
+        WHERE u.username = $1
+    `;
+    const result = await pool.query(query, [username]);
+    return result.rows[0];
+}
+
+async function syncUserFromAdToDb(username, adInfo) {
+    let user = await getUserFromDb(username);
+
+    if (!user) {
+        const insert = `
+            INSERT INTO seguridad.usuarios (username, email, origen_auth, rol_id)
+            VALUES ($1, $2, 'AD', 2) 
+            RETURNING id, username, email, origen_auth, rol_id
+        `;
+        const email = adInfo.mail || `${username}@ine.gov.bo`;
+        const res = await pool.query(insert, [username, email]);
+
+        user = res.rows[0];
+        user.rol_nombre = 'usuario';
+    }
+    return user;
+}
+
+function generateToken(user) {
+    return jwt.sign(
+        {
+            id: user.id,
+            username: user.username,
+            role: user.rol_nombre || 'user'
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: '8h' }
+    );
 }

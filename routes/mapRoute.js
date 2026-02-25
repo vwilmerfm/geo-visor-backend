@@ -8,5 +8,6 @@ router.get('/municipios/:departamento_id', verificarToken, mapaController.getMun
 router.get('/comunidades/:municipio_id', verificarToken, mapaController.getComunidades);
 router.get('/estadisticas', verificarToken, mapaController.getEstadisticas);
 router.get('/apa-comunidad/:id', verificarToken, mapaController.getApaComunidad);
+router.get('/descargar-excel', verificarToken, mapaController.descargarExcel);
 
 module.exports = router;

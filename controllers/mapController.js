@@ -76,6 +76,21 @@ exports.getComunidades = async (req, res) => {
                  AND c.cod_prov = m.cod_prov 
                  AND c.cod_mpio = m.cod_mpio
                 WHERE m.id_0 = $1
+
+                UNION ALL
+
+                SELECT 
+                    c.id, 
+                    c.ciu_com AS nombre, 
+                    a.geom 
+                FROM marco_referencial.mr_d_apa a
+                JOIN marco_referencial.mr_comunidades c 
+                  ON a.id_com_area = c.id_com_area
+                JOIN insumos.municipios_ds_5050 m 
+                  ON a.cod_depto = m.cod_depto 
+                 AND a.cod_prov = m.cod_prov 
+                 AND a.cod_mpio = m.cod_mpio
+                WHERE m.id_0 = $1
             ) as t;
         `;
 

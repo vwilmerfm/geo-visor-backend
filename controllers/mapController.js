@@ -68,7 +68,7 @@ exports.getComunidades = async (req, res) => {
             FROM (
                 SELECT 
                     c.id, 
-                    c.ciu_com AS nombre, 
+                    c.ciu_com_area AS nombre, 
                     c.geom 
                 FROM marco_referencial.mr_comunidades c
                 JOIN insumos.municipios_ds_5050 m 
@@ -81,7 +81,7 @@ exports.getComunidades = async (req, res) => {
 
                 SELECT 
                     c.id, 
-                    c.ciu_com AS nombre, 
+                    c.ciu_com_area AS nombre, 
                     a.geom 
                 FROM marco_referencial.mr_d_apa a
                 JOIN marco_referencial.mr_comunidades c 
@@ -204,8 +204,8 @@ exports.descargarExcel = async (req, res) => {
         }
 
         const query = `
-            SELECT 
-                a.cod_depto, a.depto, a.cod_prov, a.prov, a.cod_mpio, a.mpio, 
+            SELECT
+                a.cod_depto, a.depto, a.cod_prov, a.prov, a.cod_mpio, a.mpio,
                 a.cod_cd_com_area, a.ciu_com_area AS ciu_com, a.id_com_area, a.tipo_area,
                 COALESCE(a.total_viv_cpv, 0) as total_viv_cpv_24,
                 COALESCE(a.tot_viv_12, 0) as total_viv_cnpv_12,
@@ -254,5 +254,73 @@ exports.descargarExcel = async (req, res) => {
     } catch (error) {
         console.error('Error generando Excel:', error);
         res.status(500).json({ error: 'Error interno al generar el archivo' });
+    }
+};
+
+exports.getSectores = async (req, res) => {
+    const { id } = req.params;
+
+    console.log("Cargando sectores para la comunidad ID:", id);
+
+    try {
+        const query = `
+            SELECT json_build_object(
+                           'type', 'FeatureCollection',
+                           'features', COALESCE(json_agg(ST_AsGeoJSON(t.*)::json), '[]'::json)
+                   ) as geojson
+            FROM (
+                     SELECT
+                         s.gid as id,
+                         s.sector_ca,
+                         s.geom
+                     FROM marco_referencial.mr_ad_sector s
+                              JOIN marco_referencial.mr_comunidades c
+                                   ON s.cod_depto = c.cod_depto
+                                       AND s.cod_prov = c.cod_prov
+                                       AND s.cod_mpio = c.cod_mpio
+                              JOIN marco_referencial.mr_d_apa a
+                                   ON c.id_com_area = a.id_com_area
+                     WHERE c.id = $1 AND ST_Intersects(s.geom, a.geom)
+                 ) as t;
+        `;
+
+        const result = await pool.query(query, [id]);
+        res.json(result.rows[0].geojson);
+
+    } catch (error) {
+        console.error('Error obteniendo sectores de la comunidad:', error);
+        res.status(500).json({ error: 'Error interno al consultar los sectores' });
+    }
+};
+
+exports.getSectoresPorMunicipio = async (req, res) => {
+    const { municipio_id } = req.params;
+
+    try {
+        const query = `
+            SELECT json_build_object(
+                'type', 'FeatureCollection',
+                'features', COALESCE(json_agg(ST_AsGeoJSON(t.*)::json), '[]'::json)
+            ) as geojson
+            FROM (
+                SELECT 
+                    s.gid as id, 
+                    s.sector_ca, 
+                    s.geom 
+                FROM marco_referencial.mr_ad_sector s
+                JOIN insumos.municipios_ds_5050 m 
+                  ON s.cod_depto = m.cod_depto 
+                 AND s.cod_prov = m.cod_prov 
+                 AND s.cod_mpio = m.cod_mpio
+                WHERE m.id_0 = $1
+            ) as t;
+        `;
+
+        const result = await pool.query(query, [municipio_id]);
+        res.json(result.rows[0].geojson);
+
+    } catch (error) {
+        console.error('Error obteniendo sectores del municipio:', error);
+        res.status(500).json({ error: 'Error al consultar los sectores municipales' });
     }
 };

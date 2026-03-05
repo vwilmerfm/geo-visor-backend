@@ -43,7 +43,7 @@ exports.getMunicipiosPorDepartamento = async (req, res) => {
                     cod_mpio AS codigo_ine, 
                     geom 
                 FROM insumos.municipios_ds_5050 
-                WHERE CAST(cod_depto AS INTEGER) = $1
+                WHERE CAST(cod_depto AS INTEGER) = $1 AND estado = TRUE
             ) as t;
         `;
 
@@ -322,5 +322,319 @@ exports.getSectoresPorMunicipio = async (req, res) => {
     } catch (error) {
         console.error('Error obteniendo sectores del municipio:', error);
         res.status(500).json({ error: 'Error al consultar los sectores municipales' });
+    }
+};
+
+exports.getPrediosMunicipio = async (req, res) => {
+    const { municipio_id } = req.params;
+    try {
+        const query = `
+            SELECT json_build_object('type', 'FeatureCollection', 'features', COALESCE(json_agg(ST_AsGeoJSON(t.*)::json), '[]'::json)) as geojson
+            FROM (
+                SELECT p.gid as id, p.geom FROM marco_referencial.mr_d_predios p
+                JOIN insumos.municipios_ds_5050 m ON p.cod_depto = m.cod_depto AND p.cod_prov = m.cod_prov AND p.cod_mpio = m.cod_mpio
+                WHERE m.id_0 = $1
+            ) as t;`;
+        const result = await pool.query(query, [municipio_id]);
+        res.json(result.rows[0].geojson);
+    } catch (error) { res.status(500).json({ error: 'Error' }); }
+};
+
+exports.getManzanosMunicipio = async (req, res) => {
+    const { municipio_id } = req.params;
+    try {
+        const query = `
+            SELECT json_build_object('type', 'FeatureCollection', 'features', COALESCE(json_agg(ST_AsGeoJSON(t.*)::json), '[]'::json)) as geojson
+            FROM (
+                SELECT p.gid as id, p.geom FROM marco_referencial.mr_a_manzanos p
+                JOIN insumos.municipios_ds_5050 m ON p.cod_depto = m.cod_depto AND p.cod_prov = m.cod_prov AND p.cod_mpio = m.cod_mpio
+                WHERE m.id_0 = $1
+            ) as t;`;
+        const result = await pool.query(query, [municipio_id]);
+        res.json(result.rows[0].geojson);
+    } catch (error) { res.status(500).json({ error: 'Error' }); }
+};
+
+exports.getPeriurbanoMunicipio = async (req, res) => {
+    const { municipio_id } = req.params;
+    try {
+        const query = `
+            SELECT json_build_object('type', 'FeatureCollection', 'features', COALESCE(json_agg(ST_AsGeoJSON(t.*)::json), '[]'::json)) as geojson
+            FROM (
+                SELECT p.gid as id, p.clas, p.geom FROM marco_referencial.mr_a_periurbano p
+                JOIN insumos.municipios_ds_5050 m ON p.cod_depto = m.cod_depto AND p.cod_prov = m.cod_prov AND p.cod_mpio = m.cod_mpio
+                WHERE m.id_0 = $1
+            ) as t;`;
+        const result = await pool.query(query, [municipio_id]);
+        res.json(result.rows[0].geojson);
+    } catch (error) { res.status(500).json({ error: 'Error' }); }
+};
+
+exports.getUpasMunicipio = async (req, res) => {
+    const { municipio_id } = req.params;
+    try {
+        const query = `
+            SELECT json_build_object('type', 'FeatureCollection', 'features', COALESCE(json_agg(ST_AsGeoJSON(t.*)::json), '[]'::json)) as geojson
+            FROM (
+                SELECT p.gid as id, p.geom FROM marco_referencial.mr_a_upa p
+                JOIN insumos.municipios_ds_5050 m ON p.cod_depto = m.cod_depto AND p.cod_prov = m.cod_prov AND p.cod_mpio = m.cod_mpio
+                WHERE m.id_0 = $1
+            ) as t;`;
+        const result = await pool.query(query, [municipio_id]);
+        res.json(result.rows[0].geojson);
+    } catch (error) { res.status(500).json({ error: 'Error' }); }
+};
+
+exports.getAreaCensalMunicipio = async (req, res) => {
+    const { municipio_id } = req.params;
+    try {
+        const query = `
+            SELECT json_build_object('type', 'FeatureCollection', 'features', COALESCE(json_agg(ST_AsGeoJSON(t.*)::json), '[]'::json)) as geojson
+            FROM (
+                SELECT p.gid as id, p.areacensal_ca, p.geom FROM marco_referencial.mr_ad_areacensal p
+                JOIN insumos.municipios_ds_5050 m ON p.cod_depto = m.cod_depto AND p.cod_prov = m.cod_prov AND p.cod_mpio = m.cod_mpio
+                WHERE m.id_0 = $1
+            ) as t;`;
+        const result = await pool.query(query, [municipio_id]);
+        res.json(result.rows[0].geojson);
+    } catch (error) { res.status(500).json({ error: 'Error' }); }
+};
+
+// exports.descargarExcelMunicipalSectores = async (req, res) => {
+//     const { id } = req.params;
+//
+//     try {
+//         const whereDinamico = `
+//             cod_depto = (SELECT cod_depto FROM insumos.municipios_ds_5050 WHERE id_0 = $1 LIMIT 1)
+//             AND cod_prov = (SELECT cod_prov FROM insumos.municipios_ds_5050 WHERE id_0 = $1 LIMIT 1)
+//             AND cod_mpio = (SELECT cod_mpio FROM insumos.municipios_ds_5050 WHERE id_0 = $1 LIMIT 1)
+//         `;
+//
+//         const queryDisperso = `
+//             SELECT cod_depto, depto, cod_prov, prov, cod_mpio, mpio, areacensal_ca, sector_ca, sec_unico_ca,
+//             cod_cd_com_area, ciu_com_area, id_ciu_com, SUM(total_viv_cpv) AS total_viv, mixto
+//             FROM marco_referencial.mr_d_predios
+//             WHERE ${whereDinamico}
+//             GROUP BY cod_depto, depto, cod_prov, prov, cod_mpio, mpio, areacensal_ca, sector_ca, sec_unico_ca,
+//             cod_cd_com_area, ciu_com_area, id_ciu_com, mixto
+//             ORDER BY sec_unico_ca, cod_cd_com_area;
+//         `;
+//
+//         const queryAmanzanado = `
+//             SELECT m.cod_depto, m.depto, m.cod_prov, m.prov, m.cod_mpio, m.mpio, m.areacensal_ca, m.sector_ca, m.sec_unico_ca,
+//             m.cod_cd_com, m.ciu_com, m.id_ciu_com, m.id_manz, SUM(m.total_viv_cpv) AS total_viv, m.mixto,
+//             COALESCE(u.cant_upa, 0) AS cant_upa
+//             FROM marco_referencial.mr_a_manzanos AS m
+//             LEFT JOIN (
+//                 SELECT id_manz, COUNT(*) AS cant_upa
+//                 FROM marco_referencial.mr_a_upa
+//                 GROUP BY id_manz
+//             ) u ON m.id_manz = u.id_manz
+//             WHERE m.${whereDinamico.replace(/cod_/g, 'cod_')}
+//             GROUP BY m.cod_depto, m.depto, m.cod_prov, m.prov, m.cod_mpio, m.mpio, m.areacensal_ca, m.sector_ca, m.sec_unico_ca,
+//             m.cod_cd_com, m.ciu_com, m.id_ciu_com, m.id_manz, m.mixto, u.cant_upa
+//             ORDER BY m.sec_unico_ca, m.cod_cd_com;
+//         `;
+//
+//         const [resultDisperso, resultAmanzanado] = await Promise.all([
+//             pool.query(queryDisperso, [id]),
+//             pool.query(queryAmanzanado, [id])
+//         ]);
+//
+//         const workbook = new ExcelJS.Workbook();
+//
+//         const wsDisperso = workbook.addWorksheet('Disperso');
+//         wsDisperso.columns = [
+//             { header: 'cod_depto', key: 'cod_depto', width: 12 },
+//             { header: 'depto', key: 'depto', width: 18 },
+//             { header: 'cod_prov', key: 'cod_prov', width: 12 },
+//             { header: 'prov', key: 'prov', width: 25 },
+//             { header: 'cod_mpio', key: 'cod_mpio', width: 12 },
+//             { header: 'mpio', key: 'mpio', width: 25 },
+//             { header: 'areacensal_ca', key: 'areacensal_ca', width: 15 },
+//             { header: 'sector_ca', key: 'sector_ca', width: 12 },
+//             { header: 'sec_unico_ca', key: 'sec_unico_ca', width: 16 },
+//             { header: 'cod_cd_com_area', key: 'cod_cd_com_area', width: 18 },
+//             { header: 'ciu_com_area', key: 'ciu_com_area', width: 40 },
+//             { header: 'id_ciu_com', key: 'id_ciu_com', width: 18 },
+//             { header: 'total_viv', key: 'total_viv', width: 12 },
+//             { header: 'mixto', key: 'mixto', width: 10 }
+//         ];
+//
+//         wsDisperso.getRow(1).eachCell(cell => {
+//             cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+//             cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1976D2' } };
+//         });
+//         wsDisperso.addRows(resultDisperso.rows);
+//
+//         const wsAmanzanado = workbook.addWorksheet('Amanzanado');
+//         wsAmanzanado.columns = [
+//             { header: 'cod_depto', key: 'cod_depto', width: 12 },
+//             { header: 'depto', key: 'depto', width: 18 },
+//             { header: 'cod_prov', key: 'cod_prov', width: 12 },
+//             { header: 'prov', key: 'prov', width: 25 },
+//             { header: 'cod_mpio', key: 'cod_mpio', width: 12 },
+//             { header: 'mpio', key: 'mpio', width: 25 },
+//             { header: 'areacensal_ca', key: 'areacensal_ca', width: 15 },
+//             { header: 'sector_ca', key: 'sector_ca', width: 12 },
+//             { header: 'sec_unico_ca', key: 'sec_unico_ca', width: 16 },
+//             { header: 'cod_cd_com', key: 'cod_cd_com', width: 15 },
+//             { header: 'ciu_com', key: 'ciu_com', width: 40 },
+//             { header: 'id_ciu_com', key: 'id_ciu_com', width: 18 },
+//             { header: 'id_manz', key: 'id_manz', width: 20 },
+//             { header: 'total_viv', key: 'total_viv', width: 12 },
+//             { header: 'mixto', key: 'mixto', width: 10 },
+//             { header: 'cant_upa', key: 'cant_upa', width: 12 }
+//         ];
+//
+//         wsAmanzanado.getRow(1).eachCell(cell => {
+//             cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+//             cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF388E3C' } };
+//         });
+//         wsAmanzanado.addRows(resultAmanzanado.rows);
+//
+//         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+//         res.setHeader('Content-Disposition', `attachment; filename=Reporte_Sectores_Mpio_${id}.xlsx`);
+//         await workbook.xlsx.write(res);
+//         res.end();
+//
+//     } catch (error) {
+//         console.error('Error generando Excel Sectores Municipal:', error);
+//         res.status(500).json({ error: 'Error interno al generar el archivo' });
+//     }
+// };
+
+exports.descargarExcelMunicipalSectores = async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const getWhere = (alias) => `
+            ${alias}.cod_depto = (SELECT cod_depto FROM insumos.municipios_ds_5050 WHERE id_0 = $1 LIMIT 1)
+            AND ${alias}.cod_prov = (SELECT cod_prov FROM insumos.municipios_ds_5050 WHERE id_0 = $1 LIMIT 1)
+            AND ${alias}.cod_mpio = (SELECT cod_mpio FROM insumos.municipios_ds_5050 WHERE id_0 = $1 LIMIT 1)
+        `;
+
+        const queryDisperso = `
+            SELECT cod_depto, depto, cod_prov, prov, cod_mpio, mpio, areacensal_ca, sector_ca, sec_unico_ca,
+                   cod_cd_com_area, ciu_com_area, id_ciu_com, SUM(total_viv_cpv) AS total_viv, mixto
+            FROM marco_referencial.mr_d_predios p
+            WHERE ${getWhere('p')}
+            GROUP BY cod_depto, depto, cod_prov, prov, cod_mpio, mpio, areacensal_ca, sector_ca, sec_unico_ca,
+                     cod_cd_com_area, ciu_com_area, id_ciu_com, mixto
+            ORDER BY sec_unico_ca, cod_cd_com_area;
+        `;
+
+        const queryAmanzanado = `
+            SELECT m.cod_depto, m.depto, m.cod_prov, m.prov, m.cod_mpio, m.mpio, m.areacensal_ca, m.sector_ca, m.sec_unico_ca,
+                   m.cod_cd_com, m.ciu_com, m.id_ciu_com, m.id_manz, SUM(m.total_viv_cpv) AS total_viv, m.mixto,
+                   COALESCE(u.cant_upa, 0) AS cant_upa
+            FROM marco_referencial.mr_a_manzanos AS m
+                     LEFT JOIN (
+                SELECT id_manz, COUNT(*) AS cant_upa
+                FROM marco_referencial.mr_a_upa
+                GROUP BY id_manz
+            ) u ON m.id_manz = u.id_manz
+            WHERE ${getWhere('m')}
+            GROUP BY m.cod_depto, m.depto, m.cod_prov, m.prov, m.cod_mpio, m.mpio, m.areacensal_ca, m.sector_ca, m.sec_unico_ca,
+                     m.cod_cd_com, m.ciu_com, m.id_ciu_com, m.id_manz, m.mixto, u.cant_upa
+            ORDER BY m.sec_unico_ca, m.cod_cd_com;
+        `;
+
+        const queryComunidades = `
+            SELECT
+                apa.depto            AS departamento,
+                apa.mpio             AS municipio,
+                apa.codigo_mpio,
+                apa.cod_cd_com_area,
+                apa.id_com_area,
+                apa.ciu_com_area,
+                apa.tipo_area,
+                apa.categoria,
+                apa.id_com_12,
+                apa.id_com_cna13,
+                cna.cod_ine          AS id_com_cna,
+                cna.depto_esta       AS departamento_cna,
+                cna.mun_estadi       AS municipio_cna,
+                cna.nom_comuni       AS comunidad_cna,
+                UPPER(cnpv.idcomunida)  AS id_com_cnpv,
+                UPPER(cnpv.departamen)  AS departamento_cnpv,
+                UPPER(cnpv.municipio)   AS municipio_cnpv,
+                UPPER(cnpv.nombrecomu)  AS comunidad_cnpv
+            FROM marco_referencial.mr_d_apa AS apa
+                     LEFT JOIN insumos.ca_cna_comunidades_cna_publicacion_nal_primera AS cna
+                               ON apa.id_com_12 = cna.cod_ine
+                     LEFT JOIN insumos.ca_cnpv_comunidades_cnpv_cna_nal_primera AS cnpv
+                               ON apa.id_com_cna13 = cnpv.idcomunida
+            WHERE ${getWhere('apa')}
+            ORDER BY apa.codigo_mpio, apa.cod_cd_com_area;
+        `;
+
+        const [resultDisperso, resultAmanzanado, resultComunidades] = await Promise.all([
+            pool.query(queryDisperso, [id]),
+            pool.query(queryAmanzanado, [id]),
+            pool.query(queryComunidades, [id])
+        ]);
+
+        const workbook = new ExcelJS.Workbook();
+
+        const wsDisperso = workbook.addWorksheet('DISPERSO');
+        wsDisperso.columns = [
+            { header: 'cod_depto', key: 'cod_depto', width: 12 }, { header: 'depto', key: 'depto', width: 18 },
+            { header: 'cod_prov', key: 'cod_prov', width: 12 }, { header: 'prov', key: 'prov', width: 25 },
+            { header: 'cod_mpio', key: 'cod_mpio', width: 12 }, { header: 'mpio', key: 'mpio', width: 25 },
+            { header: 'areacensal_ca', key: 'areacensal_ca', width: 15 }, { header: 'sector_ca', key: 'sector_ca', width: 12 },
+            { header: 'sec_unico_ca', key: 'sec_unico_ca', width: 16 }, { header: 'cod_cd_com_area', key: 'cod_cd_com_area', width: 18 },
+            { header: 'ciu_com_area', key: 'ciu_com_area', width: 40 }, { header: 'id_ciu_com', key: 'id_ciu_com', width: 18 },
+            { header: 'total_viv', key: 'total_viv', width: 12 }, { header: 'mixto', key: 'mixto', width: 10 }
+        ];
+        wsDisperso.getRow(1).eachCell(cell => { cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1976D2' } }; });
+        wsDisperso.addRows(resultDisperso.rows);
+
+        const wsAmanzanado = workbook.addWorksheet('AMANZANADO');
+        wsAmanzanado.columns = [
+            { header: 'cod_depto', key: 'cod_depto', width: 12 }, { header: 'depto', key: 'depto', width: 18 },
+            { header: 'cod_prov', key: 'cod_prov', width: 12 }, { header: 'prov', key: 'prov', width: 25 },
+            { header: 'cod_mpio', key: 'cod_mpio', width: 12 }, { header: 'mpio', key: 'mpio', width: 25 },
+            { header: 'areacensal_ca', key: 'areacensal_ca', width: 15 }, { header: 'sector_ca', key: 'sector_ca', width: 12 },
+            { header: 'sec_unico_ca', key: 'sec_unico_ca', width: 16 }, { header: 'cod_cd_com', key: 'cod_cd_com', width: 15 },
+            { header: 'ciu_com', key: 'ciu_com', width: 40 }, { header: 'id_ciu_com', key: 'id_ciu_com', width: 18 },
+            { header: 'id_manz', key: 'id_manz', width: 20 }, { header: 'total_viv', key: 'total_viv', width: 12 },
+            { header: 'mixto', key: 'mixto', width: 10 }, { header: 'cant_upa', key: 'cant_upa', width: 12 }
+        ];
+        wsAmanzanado.getRow(1).eachCell(cell => { cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF388E3C' } }; });
+        wsAmanzanado.addRows(resultAmanzanado.rows);
+
+        const wsComunidades = workbook.addWorksheet('DATOS_APA ');
+        wsComunidades.columns = [
+            { header: 'departamento', key: 'departamento', width: 18 },
+            { header: 'municipio', key: 'municipio', width: 25 },
+            { header: 'codigo_mpio', key: 'codigo_mpio', width: 15 },
+            { header: 'cod_cd_com_area', key: 'cod_cd_com_area', width: 20 },
+            { header: 'id_com_area', key: 'id_com_area', width: 20 },
+            { header: 'ciu_com_area', key: 'ciu_com_area', width: 40 },
+            { header: 'tipo_area', key: 'tipo_area', width: 15 },
+            { header: 'categoria', key: 'categoria', width: 15 },
+            { header: 'id_com_12', key: 'id_com_12', width: 18 },
+            { header: 'id_com_cna13', key: 'id_com_cna13', width: 18 },
+            { header: 'id_com_cna', key: 'id_com_cna', width: 18 },
+            { header: 'departamento_cna', key: 'departamento_cna', width: 20 },
+            { header: 'municipio_cna', key: 'municipio_cna', width: 25 },
+            { header: 'comunidad_cna', key: 'comunidad_cna', width: 35 },
+            { header: 'id_com_cnpv', key: 'id_com_cnpv', width: 18 },
+            { header: 'departamento_cnpv', key: 'departamento_cnpv', width: 20 },
+            { header: 'municipio_cnpv', key: 'municipio_cnpv', width: 25 },
+            { header: 'comunidad_cnpv', key: 'comunidad_cnpv', width: 35 }
+        ];
+        wsComunidades.getRow(1).eachCell(cell => { cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF8E24AA' } }; });
+        wsComunidades.addRows(resultComunidades.rows);
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename=Reporte_Sectores_Mpio_${id}.xlsx`);
+        await workbook.xlsx.write(res);
+        res.end();
+
+    } catch (error) {
+        console.error('Error generando Excel Sectores Municipal:', error);
+        res.status(500).json({ error: 'Error interno al generar el archivo' });
     }
 };

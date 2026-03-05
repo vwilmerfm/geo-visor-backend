@@ -11,5 +11,11 @@ router.get('/apa-comunidad/:id', verificarToken, mapaController.getApaComunidad)
 router.get('/descargar-excel', verificarToken, mapaController.descargarExcel);
 router.get('/sectores/:id', verificarToken, mapaController.getSectores);
 router.get('/sectores-municipio/:municipio_id', verificarToken, mapaController.getSectoresPorMunicipio);
+router.get('/predios-municipio/:municipio_id', verificarToken, mapaController.getPrediosMunicipio);
+router.get('/manzanos-municipio/:municipio_id', verificarToken, mapaController.getManzanosMunicipio);
+router.get('/periurbano-municipio/:municipio_id', verificarToken, mapaController.getPeriurbanoMunicipio);
+router.get('/upas-municipio/:municipio_id', verificarToken, mapaController.getUpasMunicipio);
+router.get('/areacensal-municipio/:municipio_id', verificarToken, mapaController.getAreaCensalMunicipio);
+router.get('/descargar-excel-sectores-municipal/:id', verificarToken, mapaController.descargarExcelMunicipalSectores);
 
 module.exports = router;

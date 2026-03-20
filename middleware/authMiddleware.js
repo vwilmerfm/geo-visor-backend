@@ -21,6 +21,7 @@ const verificarToken = (req, res, next) => {
 const esRol = (rolesPermitidos) => {
     return (req, res, next) => {
         if (!req.user || !rolesPermitidos.includes(req.user.role)) {
+            console.log("req.user", req.user);
             return res.status(403).json({ error: 'No tienes permisos suficientes para realizar esta acción.' });
         }
         next();

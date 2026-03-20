@@ -17,5 +17,9 @@ router.get('/periurbano-municipio/:municipio_id', verificarToken, mapaController
 router.get('/upas-municipio/:municipio_id', verificarToken, mapaController.getUpasMunicipio);
 router.get('/areacensal-municipio/:municipio_id', verificarToken, mapaController.getAreaCensalMunicipio);
 router.get('/descargar-excel-sectores-municipal/:id', verificarToken, mapaController.descargarExcelMunicipalSectores);
+router.get('/superarea-municipio/:municipio_id', verificarToken, mapaController.getSuperAreaMunicipio);
+router.get('/areatrabajo-municipio/:municipio_id', verificarToken, mapaController.getAreaTrabajoMunicipio);
+
+module.exports = router;
 
 module.exports = router;

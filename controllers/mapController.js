@@ -558,14 +558,17 @@ exports.getSuperAreaMunicipio = async (req, res) => {
         const query = `
             SELECT json_build_object('type', 'FeatureCollection', 'features', COALESCE(json_agg(ST_AsGeoJSON(t.*)::json), '[]'::json)) as geojson
             FROM (
-                SELECT p.gid as id, p.superarea_ca, p.wkt_geom as geom 
+                SELECT p.gid as id, p.superarea_ca, p.geom 
                 FROM marco_referencial.mr_ad_super_area p
                 JOIN insumos.municipios_ds_5050 m ON p.cod_depto = m.cod_depto AND p.cod_prov = m.cod_prov AND p.cod_mpio = m.cod_mpio
                 WHERE m.id_0 = $1
             ) as t;`;
         const result = await pool.query(query, [municipio_id]);
         res.json(result.rows[0].geojson);
-    } catch (error) { res.status(500).json({ error: 'Error' }); }
+    } catch (error) {
+        console.error('Error en getSuperAreaMunicipio:', error);
+        res.status(500).json({ error: 'Error interno de base de datos' });
+    }
 };
 
 exports.getAreaTrabajoMunicipio = async (req, res) => {
@@ -574,12 +577,15 @@ exports.getAreaTrabajoMunicipio = async (req, res) => {
         const query = `
             SELECT json_build_object('type', 'FeatureCollection', 'features', COALESCE(json_agg(ST_AsGeoJSON(t.*)::json), '[]'::json)) as geojson
             FROM (
-                SELECT p.gid as id, p.at_ca, p.wkt_geom as geom 
+                SELECT p.gid as id, p.at_ca, p.geom 
                 FROM marco_referencial.mr_ad_area_trabajo p
                 JOIN insumos.municipios_ds_5050 m ON p.cod_depto = m.cod_depto AND p.cod_prov = m.cod_prov AND p.cod_mpio = m.cod_mpio
                 WHERE m.id_0 = $1
             ) as t;`;
         const result = await pool.query(query, [municipio_id]);
         res.json(result.rows[0].geojson);
-    } catch (error) { res.status(500).json({ error: 'Error' }); }
+    } catch (error) {
+        console.error('Error en getAreaTrabajoMunicipio:', error);
+        res.status(500).json({ error: 'Error interno de base de datos' });
+    }
 };

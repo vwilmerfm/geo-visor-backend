@@ -337,7 +337,10 @@ exports.getPrediosMunicipio = async (req, res) => {
             ) as t;`;
         const result = await pool.query(query, [municipio_id]);
         res.json(result.rows[0].geojson);
-    } catch (error) { res.status(500).json({ error: 'Error' }); }
+    } catch (error) {
+        console.error(`Error en predios (Municipio ${municipio_id}):`, error);
+        res.status(500).json({ error: 'Error interno de base de datos' });
+    }
 };
 
 exports.getManzanosMunicipio = async (req, res) => {

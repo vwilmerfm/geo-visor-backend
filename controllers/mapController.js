@@ -260,8 +260,6 @@ exports.descargarExcel = async (req, res) => {
 exports.getSectores = async (req, res) => {
     const { id } = req.params;
 
-    console.log("Cargando sectores para la comunidad ID:", id);
-
     try {
         const query = `
             SELECT json_build_object(
@@ -414,29 +412,30 @@ exports.descargarExcelMunicipalSectores = async (req, res) => {
         `;
 
         const queryDisperso = `
-            SELECT p.cod_depto, p.depto, p.cod_prov, p.prov, p.cod_mpio, p.mpio, p.superarea_ca, p.areacensal_ca, p.sector_ca,
-                   p.sec_unico_ca, p.cod_cd_com_area, p.ciu_com_area, p.id_ciu_com, p.at_unico_ca, p.at_ca AS area_trabajo, SUM(p.total_viv_cpv) AS total_viv,
-                   p.mixto
-            FROM marco_referencial.mr_d_predios p
+            SELECT p.cod_depto, p.depto, p.cod_prov, p.prov, p.cod_mpio, p.mpio, p.macroarea_ca, p.areacensal_ca, p.sector_ca, p.sec_unico_ca, 
+                   p.cod_cd_com_area, p.ciu_com_area, p.id_ciu_com, p.id_com_area, SUM(p.total_viv_cpv) AS total_viv, p.mixto, a.upa_ref
+            FROM marco_referencial.mr_d_predios AS p
+            LEFT JOIN marco_referencial.mr_d_apa_copia AS a
+                ON p.id_com_area = a.id_com_area
             WHERE ${getWhere('p')}
-            GROUP BY p.cod_depto, p.depto, p.cod_prov, p.prov, p.cod_mpio, p.mpio, p.superarea_ca, p.areacensal_ca, p.sector_ca,
-                     p.sec_unico_ca, p.cod_cd_com_area, p.ciu_com_area, p.id_ciu_com, p.at_unico_ca, p.at_ca, p.mixto
-            ORDER BY p.sec_unico_ca, p.at_unico_ca;
+            GROUP BY p.cod_depto, p.depto, p.cod_prov, p.prov, p.cod_mpio, p.mpio, p.macroarea_ca, p.areacensal_ca, p.sector_ca, p.sec_unico_ca, 
+                     p.cod_cd_com_area, p.ciu_com_area, p.id_ciu_com, p.id_com_area, p.mixto, a.upa_ref
+            ORDER BY p.sec_unico_ca;
         `;
 
         const queryAmanzanado = `
-            SELECT m.cod_depto, m.depto, m.cod_prov, m.prov, m.cod_mpio, m.mpio, m.superarea_ca, m.areacensal_ca, m.sector_ca, m.sec_unico_ca,
-                   m.cod_cd_com, m.ciu_com, m.id_ciu_com, m.id_manz, m.orden_manz, m.at_unico_ca, m.at_ca AS area_trabajo, SUM(m.total_viv_cpv) AS total_viv, m.mixto,
+            SELECT m.cod_depto, m.depto, m.cod_prov, m.prov, m.cod_mpio, m.mpio, m.macroarea_ca, m.areacensal_ca, m.sector_ca, m.sec_unico_ca,
+                   m.cod_cd_com, m.ciu_com, m.id_ciu_com, m.id_manz, m.orden_manz, SUM(m.total_viv_cpv) AS total_viv, m.mixto, 
                    COALESCE(u.cant_upa, 0) AS cant_upa
             FROM marco_referencial.mr_a_manzanos AS m
-                     LEFT JOIN (
+            LEFT JOIN (
                 SELECT id_manz, COUNT(*) AS cant_upa
                 FROM marco_referencial.mr_a_upa
                 GROUP BY id_manz
             ) u ON m.id_manz = u.id_manz
             WHERE ${getWhere('m')}
-            GROUP BY m.cod_depto, m.depto, m.cod_prov, m.prov, m.cod_mpio, m.mpio, m.superarea_ca, m.areacensal_ca, m.sector_ca, m.sec_unico_ca,
-                     m.cod_cd_com, m.ciu_com, m.id_ciu_com, m.id_manz, m.orden_manz, m.at_unico_ca, m.at_ca, m.mixto, u.cant_upa
+            GROUP BY m.cod_depto, m.depto, m.cod_prov, m.prov, m.cod_mpio, m.mpio, m.macroarea_ca, m.areacensal_ca, m.sector_ca, m.sec_unico_ca,
+                     m.cod_cd_com, m.ciu_com, m.id_ciu_com, m.id_manz, m.orden_manz, m.mixto, u.cant_upa
             ORDER BY m.sec_unico_ca, m.cod_cd_com;
         `;
 
@@ -482,17 +481,17 @@ exports.descargarExcelMunicipalSectores = async (req, res) => {
             { header: 'cod_depto', key: 'cod_depto', width: 12 }, { header: 'depto', key: 'depto', width: 18 },
             { header: 'cod_prov', key: 'cod_prov', width: 12 }, { header: 'prov', key: 'prov', width: 25 },
             { header: 'cod_mpio', key: 'cod_mpio', width: 12 }, { header: 'mpio', key: 'mpio', width: 25 },
-            { header: 'superarea_ca', key: 'superarea_ca', width: 15 },
+            { header: 'macroarea_ca', key: 'macroarea_ca', width: 15 },
             { header: 'areacensal_ca', key: 'areacensal_ca', width: 15 },
             { header: 'sector_ca', key: 'sector_ca', width: 12 },
             { header: 'sec_unico_ca', key: 'sec_unico_ca', width: 16 },
             { header: 'cod_cd_com_area', key: 'cod_cd_com_area', width: 18 },
             { header: 'ciu_com_area', key: 'ciu_com_area', width: 40 },
             { header: 'id_ciu_com', key: 'id_ciu_com', width: 18 },
-            { header: 'at_unico_ca', key: 'at_unico_ca', width: 16 },
-            { header: 'area_trabajo', key: 'area_trabajo', width: 15 },
+            { header: 'id_com_area', key: 'id_com_area', width: 20 },
             { header: 'total_viv', key: 'total_viv', width: 12 },
-            { header: 'mixto', key: 'mixto', width: 10 }
+            { header: 'mixto', key: 'mixto', width: 10 },
+            { header: 'upa_ref', key: 'upa_ref', width: 15 }
         ];
         wsDisperso.getRow(1).eachCell(cell => { cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1976D2' } }; });
         wsDisperso.addRows(resultDisperso.rows);
@@ -502,7 +501,7 @@ exports.descargarExcelMunicipalSectores = async (req, res) => {
             { header: 'cod_depto', key: 'cod_depto', width: 12 }, { header: 'depto', key: 'depto', width: 18 },
             { header: 'cod_prov', key: 'cod_prov', width: 12 }, { header: 'prov', key: 'prov', width: 25 },
             { header: 'cod_mpio', key: 'cod_mpio', width: 12 }, { header: 'mpio', key: 'mpio', width: 25 },
-            { header: 'superarea_ca', key: 'superarea_ca', width: 15 },
+            { header: 'macroarea_ca', key: 'macroarea_ca', width: 15 },
             { header: 'areacensal_ca', key: 'areacensal_ca', width: 15 },
             { header: 'sector_ca', key: 'sector_ca', width: 12 },
             { header: 'sec_unico_ca', key: 'sec_unico_ca', width: 16 },
@@ -511,8 +510,6 @@ exports.descargarExcelMunicipalSectores = async (req, res) => {
             { header: 'id_ciu_com', key: 'id_ciu_com', width: 18 },
             { header: 'id_manz', key: 'id_manz', width: 20 },
             { header: 'orden_manz', key: 'orden_manz', width: 15 },
-            { header: 'at_unico_ca', key: 'at_unico_ca', width: 16 },
-            { header: 'area_trabajo', key: 'area_trabajo', width: 15 },
             { header: 'total_viv', key: 'total_viv', width: 12 },
             { header: 'mixto', key: 'mixto', width: 10 },
             { header: 'cant_upa', key: 'cant_upa', width: 12 }
@@ -561,8 +558,8 @@ exports.getSuperAreaMunicipio = async (req, res) => {
         const query = `
             SELECT json_build_object('type', 'FeatureCollection', 'features', COALESCE(json_agg(ST_AsGeoJSON(t.*)::json), '[]'::json)) as geojson
             FROM (
-                SELECT p.gid as id, p.superarea_ca, p.geom 
-                FROM marco_referencial.mr_ad_super_area p
+                SELECT p.gid as id, p.macroarea_ca, p.geom 
+                FROM marco_referencial.mr_ad_macro_areacensal p
                 JOIN insumos.municipios_ds_5050 m ON p.cod_depto = m.cod_depto AND p.cod_prov = m.cod_prov AND p.cod_mpio = m.cod_mpio
                 WHERE m.id_0 = $1
             ) as t;`;
